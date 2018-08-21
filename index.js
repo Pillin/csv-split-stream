@@ -11,6 +11,7 @@ function split(inputStream, opts, createOutputStreamCallback) {
   let header;
   const options = {
     delimiter: opts.delimiter || '\n',
+    emptyHeader: opts.emptyHeader,
     lineLimit: opts.lineLimit
   };
 
@@ -36,27 +37,29 @@ function split(inputStream, opts, createOutputStreamCallback) {
     }
 
     lineStream.on('data', line => {
-      if (!header) {
+
+      if (!opts.emptyHeader && !header) {
         header = line;
-      } else {
-        if (lineIndex === 0) {
-          if (outputStream) {
-            outputStream.end();
-          }
-          outputStream = createOutputStreamCallback(chunkIndex++);
+      }
+      if (lineIndex === 0) {
+        if (outputStream) {
+          outputStream.end();
+        }
+        outputStream = createOutputStreamCallback(chunkIndex++);
+        if (!opts.emptyHeader) {
           outputStream.write(header);
           outputStream.write(options.delimiter);
         }
-
-        outputStream.write(line);
-        outputStream.write(options.delimiter);
-        lineIndex = (++lineIndex) % options.lineLimit;
       }
+      outputStream.write(line);
+      outputStream.write(options.delimiter);
+      lineIndex = (++lineIndex) % options.lineLimit;
+
     });
 
     lineStream.on('error', handleError);
     lineStream.on('end', () => {
-      if (!header) {
+      if (!header && !opts.emptyHeader) {
         reject(new Error('The provided CSV is empty'));
         return;
       }
@@ -65,7 +68,9 @@ function split(inputStream, opts, createOutputStreamCallback) {
         outputStream.end();
       } else {
         outputStream = createOutputStreamCallback(chunkIndex++);
-        outputStream.write(header);
+        if (!opts.emptyHeader) {
+          outputStream.write(header);
+        }
         outputStream.write(options.delimiter);
         outputStream.end();
       }
